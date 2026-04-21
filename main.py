@@ -1,5 +1,4 @@
 import flet as ft
-from Calculator import calculate_weighted_average
 from IPv4Subnetting import SubnetCalculator
 from MultiBaseConverter import convert
 from MultiBaseCalc import MultiBaseCalculator
@@ -8,7 +7,7 @@ from BooleanAlgebra import BooleanAlgebraSimplifier
 from ScientificCalculator import ScientificCalculator
 from Flashcards import FlashcardManager
 from Notes import NotesManager
-from EduPage import EduSession, EduPageManager, save_credentials, load_credentials, clear_credentials
+from EduPage import EduPageManager
 from Lunch import LunchMenuManager
 from WolframAlpha import WolframAlphaManager
 
@@ -1237,7 +1236,7 @@ def main(page: ft.Page):
     # ═══════════════════════════════════════════════════════
     # TAB 8: Scientific Calculator
     # ═══════════════════════════════════════════════════════
-    sci_calc = ScientificCalculator.ScientificCalculator()
+    sci_calc = ScientificCalculator()
     sci_input = ft.TextField(label="Expression", width=300, content_padding=8)
     sci_result = ft.Text("", size=16, weight=ft.FontWeight.W_500)
     sci_error = ft.Text("", size=12, color=ERROR_COLOR)
