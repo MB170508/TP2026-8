@@ -286,3 +286,55 @@ def convert_all(value: float, category: str, from_unit: str) -> dict:
         results[name] = base_value * unit.from_base
 
     return {"success": True, "results": results}
+
+
+class UnitConverter:
+    """Unit conversion manager with category support."""
+
+    def __init__(self):
+        self.current_category = get_categories()[0]
+        self.conversion_history = []
+
+    def get_categories(self) -> list:
+        """Get all available unit categories."""
+        return get_categories()
+
+    def get_units_for_category(self, category: str) -> list:
+        """Get units for a specific category."""
+        return get_units(category)
+
+    def set_category(self, category: str) -> dict:
+        """Set the current category."""
+        if category not in self.get_categories():
+            return {"success": False, "message": f"Unknown category: {category}"}
+        self.current_category = category
+        return {"success": True, "message": f"Category set to {category}"}
+
+    def convert_value(self, value: float, from_unit: str, to_unit: str) -> dict:
+        """Convert a value between units."""
+        result = convert(value, self.current_category, from_unit, to_unit)
+        if result["success"]:
+            self.conversion_history.append({
+                "value": value,
+                "from_unit": from_unit,
+                "to_unit": to_unit,
+                "result": result["value"],
+                "category": self.current_category
+            })
+            # Keep only last 10 conversions
+            if len(self.conversion_history) > 10:
+                self.conversion_history.pop(0)
+        return result
+
+    def convert_to_all(self, value: float, from_unit: str) -> dict:
+        """Convert a value to all units in current category."""
+        return convert_all(value, self.current_category, from_unit)
+
+    def get_history(self) -> list:
+        """Get conversion history."""
+        return self.conversion_history.copy()
+
+    def clear_history(self) -> dict:
+        """Clear conversion history."""
+        self.conversion_history.clear()
+        return {"success": True, "message": "History cleared."}

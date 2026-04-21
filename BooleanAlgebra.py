@@ -123,3 +123,48 @@ def simplify_expression(expr: str) -> dict:
         "pos": pos,
         "table": table,
     }
+
+
+class BooleanAlgebraSimplifier:
+    """Boolean algebra expression simplifier with truth table analysis."""
+
+    def __init__(self):
+        self.last_result = None
+
+    def simplify(self, expression: str) -> dict:
+        """Simplify a boolean expression and return analysis."""
+        self.last_result = simplify_expression(expression)
+        return self.last_result
+
+    def get_truth_table_text(self) -> str:
+        """Get formatted truth table as text."""
+        if not self.last_result or not self.last_result.get("success"):
+            return "No valid expression analyzed yet."
+
+        if self.last_result["type"] in ("tautology", "contradiction"):
+            return f"Expression is {self.last_result['type'].upper()}"
+
+        table = self.last_result["table"]
+        vars_found = self.last_result["vars"]
+
+        lines = []
+        header = " | ".join(vars_found) + " | Out"
+        lines.append(header)
+        lines.append("-" * len(header))
+
+        for assignment, result in table:
+            row = " | ".join(str(assignment[var]) for var in vars_found) + f" | {result}"
+            lines.append(row)
+
+        return "\n".join(lines)
+
+    def get_examples(self) -> list:
+        """Get example boolean expressions."""
+        return [
+            "A · B + C",
+            "~A + B · C",
+            "(A + B) · C",
+            "A ^ B",
+            "A + A · B",
+            "~(A + B)",
+        ]

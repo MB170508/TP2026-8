@@ -234,3 +234,66 @@ def allocate_subnets(base_network: dict, segments: list[int]) -> list[dict] | No
 
     subnets.sort(key=lambda x: x["OgIndex"])
     return subnets
+
+
+class SubnetCalculator:
+    """Manages IPv4 subnet calculation state and operations."""
+
+    def __init__(self):
+        self.segments: list[int] = []
+        self.network_address = ""
+
+    def add_segment(self, users: str) -> dict:
+        """Add a segment with the specified number of users."""
+        try:
+            users_int = int(users)
+        except (ValueError, TypeError):
+            return {"success": False, "message": "Enter a valid number."}
+
+        if users_int <= 0 or users_int > 65534:
+            return {"success": False, "message": "Users must be between 1 and 65534."}
+
+        self.segments.append(users_int)
+        return {"success": True, "message": f"Added segment with {users_int} users."}
+
+    def remove_segment(self, index: int) -> dict:
+        """Remove a segment at the specified index."""
+        if index < 0 or index >= len(self.segments):
+            return {"success": False, "message": "Invalid segment index."}
+
+        removed = self.segments.pop(index)
+        return {"success": True, "message": f"Removed segment with {removed} users."}
+
+    def get_segments(self) -> dict:
+        """Get the current list of segments."""
+        return {
+            "success": True,
+            "segments": self.segments.copy(),
+            "message": f"{len(self.segments)} segments configured."
+        }
+
+    def calculate_subnets(self, network: str) -> dict:
+        """Calculate subnets for the current segments."""
+        if not self.segments:
+            return {"success": False, "message": "At least one segment is required."}
+
+        self.network_address = network
+        result = calculate_subnets(network, self.segments)
+
+        if result["success"]:
+            result["message"] = f"Calculated {len(result['subnets'])} subnets successfully."
+        return result
+
+    def reset(self) -> dict:
+        """Reset the calculator state."""
+        self.segments.clear()
+        self.network_address = ""
+        return {"success": True, "message": "Calculator reset."}
+
+    def get_state(self) -> dict:
+        """Get the current calculator state."""
+        return {
+            "segments": self.segments.copy(),
+            "network": self.network_address,
+            "segment_count": len(self.segments)
+        }

@@ -95,3 +95,53 @@ def fetch_lunch_menu() -> list[dict]:
 
     # Limit to first 5 days (today + upcoming)
     return menu[:5]
+
+
+class LunchMenuManager:
+    """Lunch menu scraper and manager."""
+
+    def __init__(self):
+        self.last_menu = None
+        self.last_fetch_time = None
+
+    def fetch_menu(self) -> dict:
+        """Fetch the current lunch menu."""
+        try:
+            menu = fetch_lunch_menu()
+            self.last_menu = menu
+            self.last_fetch_time = datetime.now()
+            return {"success": True, "menu": menu}
+        except Exception as e:
+            return {"success": False, "message": f"Failed to fetch menu: {str(e)}"}
+
+    def get_cached_menu(self) -> dict:
+        """Get the last fetched menu if available."""
+        if self.last_menu is None:
+            return {"success": False, "message": "No menu cached. Fetch menu first."}
+        return {"success": True, "menu": self.last_menu}
+
+    def is_cache_valid(self, max_age_minutes: int = 60) -> bool:
+        """Check if cached menu is still valid."""
+        if self.last_fetch_time is None:
+            return False
+        age = datetime.now() - self.last_fetch_time
+        return age.total_seconds() < (max_age_minutes * 60)
+
+    def get_menu_summary(self) -> str:
+        """Get a text summary of the menu."""
+        if not self.last_menu:
+            return "No menu available."
+
+        lines = []
+        for day in self.last_menu:
+            lines.append(f"{day['day_name']} ({day['date']}):")
+            for meal in day['meals']:
+                if meal['name']:
+                    lines.append(f"  {meal['name']}:")
+                for item in meal['items']:
+                    lines.append(f"    - {item}")
+                if not meal['items']:
+                    lines.append("    (No items)")
+            lines.append("")
+
+        return "\n".join(lines).strip()

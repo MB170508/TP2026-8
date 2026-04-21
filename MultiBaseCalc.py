@@ -127,3 +127,44 @@ def format_number(value: int, base: int) -> str:
     elif base == 16:
         return hex(value)[2:].upper() if value >= 0 else "-" + hex(abs(value))[2:].upper()
     return str(value)
+
+
+class MultiBaseCalculator:
+    """Multi-base calculator with expression evaluation and history."""
+
+    def __init__(self):
+        self.history = []
+
+    def evaluate_expression(self, expression: str) -> dict:
+        """Evaluate a multi-base arithmetic expression."""
+        result = evaluate(expression)
+        if result["success"]:
+            self.history.append({
+                "expression": expression,
+                "result": result["result"],
+                "results": result["results"]
+            })
+            # Keep only last 10 entries
+            if len(self.history) > 10:
+                self.history.pop(0)
+        return result
+
+    def get_history(self) -> list:
+        """Get calculation history."""
+        return self.history.copy()
+
+    def clear_history(self) -> dict:
+        """Clear calculation history."""
+        self.history.clear()
+        return {"success": True, "message": "History cleared."}
+
+    def get_examples(self) -> list:
+        """Get example expressions."""
+        return [
+            "0b1010 + 0xFF",
+            "0o77 * 2",
+            "255 / 0xF",
+            "0b1010 & 0xFF",
+            "0x10 << 2",
+            "0b1111 ^ 0b1010",
+        ]

@@ -336,3 +336,67 @@ def open_api_portal():
         return True
     except Exception:
         return False
+
+
+class WolframAlphaManager:
+    """Wolfram Alpha API integration manager."""
+
+    def __init__(self):
+        self.api_key = load_api_key()
+        self.history = get_query_history()
+
+    def set_api_key(self, key: str) -> dict:
+        """Set and validate API key."""
+        if not key or not key.strip():
+            return {"success": False, "message": "API key cannot be empty."}
+
+        # Validate key
+        if not validate_api_key(key.strip()):
+            return {"success": False, "message": "Invalid API key. Please check and try again."}
+
+        # Save key
+        result = save_api_key(key.strip())
+        if result["success"]:
+            self.api_key = key.strip()
+        return result
+
+    def clear_api_key(self) -> dict:
+        """Clear stored API key."""
+        result = clear_api_key()
+        if result["success"]:
+            self.api_key = None
+        return result
+
+    def has_api_key(self) -> bool:
+        """Check if API key is set."""
+        return self.api_key is not None
+
+    def query(self, query_text: str, assumptions=None) -> dict:
+        """Execute a Wolfram Alpha query."""
+        if not self.api_key:
+            return {
+                "success": False,
+                "message": "API key not set. Please log in first.",
+                "results": {"simple": [], "detailed": []}
+            }
+
+        result = query(query_text, self.api_key, assumptions)
+        if result["success"]:
+            save_query_to_history(query_text, result)
+            self.history = get_query_history()  # Refresh history
+        return result
+
+    def get_history(self) -> list:
+        """Get query history."""
+        return self.history.copy()
+
+    def clear_history(self) -> dict:
+        """Clear query history."""
+        result = clear_history()
+        if result["success"]:
+            self.history = []
+        return result
+
+    def open_portal(self) -> bool:
+        """Open Wolfram Alpha API portal in browser."""
+        return open_api_portal()

@@ -120,3 +120,80 @@ def get_predictions(text: str, lang: str = "cz", max_suggestions: int = 5) -> li
 
     return suggestions[:max_suggestions]
 
+
+class NotesManager:
+    """Notes manager with word prediction and persistence."""
+
+    def __init__(self, path: str = NOTES_PATH):
+        self.path = path
+        self.notes = load_notes(path)
+        self.current_note_index = -1
+
+    def save(self) -> bool:
+        """Save notes to file."""
+        return save_notes(self.notes, self.path)
+
+    def create_note(self, title: str) -> dict:
+        """Create a new note."""
+        result = create_note(self.notes, title)
+        if result is None:
+            return {"success": False, "message": "Title cannot be empty."}
+        self.save()
+        return {"success": True, "message": f"Note '{title}' created.", "index": len(self.notes) - 1}
+
+    def update_note(self, index: int, content: str) -> dict:
+        """Update note content."""
+        result = update_note(self.notes, index, content)
+        if result is None:
+            return {"success": False, "message": "Note not found."}
+        self.save()
+        return {"success": True, "message": "Note updated."}
+
+    def delete_note(self, index: int) -> dict:
+        """Delete a note."""
+        if 0 <= index < len(self.notes):
+            title = self.notes[index]["title"]
+            delete_note(self.notes, index)
+            self.save()
+            if self.current_note_index == index:
+                self.current_note_index = -1
+            elif self.current_note_index > index:
+                self.current_note_index -= 1
+            return {"success": True, "message": f"Note '{title}' deleted."}
+        return {"success": False, "message": "Note not found."}
+
+    def set_note_language(self, index: int, lang: str) -> dict:
+        """Set note language for prediction."""
+        result = set_note_lang(self.notes, index, lang)
+        if result is None:
+            return {"success": False, "message": "Note not found."}
+        self.save()
+        return {"success": True, "message": f"Language set to {lang}."}
+
+    def get_note(self, index: int) -> dict:
+        """Get a specific note."""
+        if 0 <= index < len(self.notes):
+            return {"success": True, "note": self.notes[index]}
+        return {"success": False, "message": "Note not found."}
+
+    def get_all_notes(self) -> list:
+        """Get all notes."""
+        return self.notes.copy()
+
+    def get_predictions(self, text: str, lang: str = "cz", max_suggestions: int = 5) -> list:
+        """Get word predictions."""
+        return get_predictions(text, lang, max_suggestions)
+
+    def set_current_note(self, index: int) -> dict:
+        """Set the current active note."""
+        if 0 <= index < len(self.notes):
+            self.current_note_index = index
+            return {"success": True, "message": "Note selected."}
+        return {"success": False, "message": "Note not found."}
+
+    def get_current_note(self) -> dict:
+        """Get the current active note."""
+        if self.current_note_index >= 0:
+            return self.get_note(self.current_note_index)
+        return {"success": False, "message": "No note selected."}
+

@@ -309,3 +309,232 @@ class EduSession:
             }
         except Exception as e:
             return {"success": False, "message": f"Error fetching substitutions: {e}"}
+
+
+class EduPageManager:
+    """Manages EduPage session and integrated grade calculation."""
+
+    def __init__(self):
+        self.session = None
+        self.manual_grades = {}  # subject -> list of (grade, weight) tuples
+        self.remember_creds = False
+        self.subdomain = ""
+        self.username = ""
+        self.password = ""
+
+    def set_credentials(self, subdomain: str, username: str, password: str, remember: bool = False):
+        """Set login credentials."""
+        self.subdomain = subdomain
+        self.username = username
+        self.password = password
+        self.remember_creds = remember
+
+        if remember:
+            save_credentials(subdomain, username, password)
+        else:
+            clear_credentials()
+
+    def load_saved_credentials(self):
+        """Load saved credentials if available."""
+        creds = load_credentials()
+        if creds:
+            self.subdomain = creds["subdomain"]
+            self.username = creds["username"]
+            self.password = creds["password"]
+            self.remember_creds = True
+            return creds
+        return None
+
+    def login(self) -> dict:
+        """Login to EduPage."""
+        if not self.subdomain or not self.username or not self.password:
+            return {"success": False, "message": "Credentials not set."}
+
+        self.session = EduSession(self.subdomain, self.username, self.password)
+        result = self.session.login()
+        if result["success"]:
+            result["message"] = "Logged in successfully!"
+        return result
+
+    def get_dashboard_data(self) -> dict:
+        """Get all dashboard data including integrated grades."""
+        if not self.session:
+            login_result = self.login()
+            if not login_result["success"]:
+                return login_result
+
+        # Fetch all data
+        grades = self.session.get_grades()
+        timetable = self.session.get_timetable()
+        homework = self.session.get_homework()
+        attendance = self.session.get_attendance()
+        tests = self.session.get_tests()
+        class_avgs = self.session.get_class_averages()
+        subs = self.session.get_substitutions()
+
+        # Integrate manual grades with EduPage grades
+        integrated_grades = self._integrate_grades(grades)
+
+        return {
+            "success": True,
+            "grades": integrated_grades,
+            "timetable": timetable,
+            "homework": homework,
+            "attendance": attendance,
+            "tests": tests,
+            "class_averages": class_avgs,
+            "substitutions": subs,
+            "message": "Dashboard data loaded."
+        }
+
+    def _integrate_grades(self, edupage_grades: dict) -> dict:
+        """Integrate EduPage grades with manual grades."""
+        if not edupage_grades["success"]:
+            return edupage_grades
+
+        integrated_subjects = []
+
+        # Start with EduPage subjects
+        edupage_subjects = {subj["name"]: subj for subj in edupage_grades["subjects"]}
+
+        # Add manual grades
+        for subject, manual_list in self.manual_grades.items():
+            if subject in edupage_subjects:
+                # Merge with existing EduPage grades
+                edupage_subjects[subject]["grades"].extend([
+                    {"grade": str(g), "weight": w, "title": "Manual", "date": "", "source": "manual"}
+                    for g, w in manual_list
+                ])
+            else:
+                # New subject with only manual grades
+                edupage_subjects[subject] = {
+                    "name": subject,
+                    "grades": [
+                        {"grade": str(g), "weight": w, "title": "Manual", "date": "", "source": "manual"}
+                        for g, w in manual_list
+                    ]
+                }
+
+        # Calculate weighted averages for each subject
+        for subj_name, subj_data in edupage_subjects.items():
+            grades_list = []
+            for g in subj_data["grades"]:
+                try:
+                    grade_val = float(g["grade"])
+                    weight = float(g.get("weight", 1))
+                    grades_list.append((grade_val, weight))
+                except (ValueError, TypeError):
+                    continue
+
+            if grades_list:
+                avg_result = self.calculate_weighted_average(grades_list)
+                subj_data["weighted_average"] = avg_result.get("value", 0)
+                subj_data["average_message"] = avg_result["message"]
+
+        integrated_grades = {
+            "success": True,
+            "subjects": list(edupage_subjects.values()),
+            "overall_average": self._calculate_overall_average(edupage_subjects),
+            "message": f"Integrated {len(edupage_subjects)} subjects with manual grades."
+        }
+
+        return integrated_grades
+
+    def _calculate_overall_average(self, subjects_dict: dict) -> float:
+        """Calculate overall weighted average across all subjects."""
+        all_grades = []
+        for subj_data in subjects_dict.values():
+            for g in subj_data["grades"]:
+                try:
+                    grade_val = float(g["grade"])
+                    weight = float(g.get("weight", 1))
+                    all_grades.append((grade_val, weight))
+                except (ValueError, TypeError):
+                    continue
+
+        if not all_grades:
+            return 0.0
+
+        result = self.calculate_weighted_average(all_grades)
+        return result.get("value", 0.0)
+
+    def add_manual_grade(self, subject: str, grade: int, weight: float) -> dict:
+        """Add a manual grade for a subject."""
+        if grade < 1 or grade > 5:
+            return {"success": False, "message": "Grade must be between 1 and 5."}
+        if weight <= 0:
+            return {"success": False, "message": "Weight must be positive."}
+
+        if subject not in self.manual_grades:
+            self.manual_grades[subject] = []
+        self.manual_grades[subject].append((grade, weight))
+
+        return {"success": True, "message": f"Added grade {grade} (weight {weight}) to {subject}."}
+
+    def remove_manual_grade(self, subject: str, index: int) -> dict:
+        """Remove a manual grade from a subject."""
+        if subject not in self.manual_grades or index >= len(self.manual_grades[subject]):
+            return {"success": False, "message": "Grade not found."}
+
+        removed = self.manual_grades[subject].pop(index)
+        if not self.manual_grades[subject]:
+            del self.manual_grades[subject]
+
+        return {"success": True, "message": f"Removed grade {removed[0]} from {subject}."}
+
+    def get_manual_grades(self) -> dict:
+        """Get all manual grades."""
+        return {
+            "success": True,
+            "grades": self.manual_grades,
+            "message": f"Manual grades: {sum(len(v) for v in self.manual_grades.values())} entries."
+        }
+
+    def calculate_weighted_average(self, grades: list[tuple[int, float]]) -> dict:
+        """Calculate weighted average from list of (grade, weight) tuples."""
+        if not grades:
+            return {"success": False, "message": "No grades entered."}
+
+        total_weighted_sum = sum(grade * weight for grade, weight in grades)
+        total_weight = sum(weight for _, weight in grades)
+
+        if total_weight == 0:
+            return {"success": False, "message": "Total weight cannot be zero."}
+
+        average = total_weighted_sum / total_weight
+        return {"success": True, "value": average, "message": f"Weighted average: {average:.2f}"}
+
+    def calculate_target_grade(self, current_grades: list[tuple[int, float]], target: float) -> dict:
+        """Calculate what grade is needed to reach target average."""
+        if not current_grades:
+            return {"success": False, "message": "Enter at least one grade first."}
+        if target < 1 or target > 5:
+            return {"success": False, "message": "Target must be between 1 and 5."}
+
+        current_sum = sum(g * w for g, w in current_grades)
+        current_weight = sum(w for _, w in current_grades)
+        current_avg = current_sum / current_weight
+
+        if current_avg <= target:
+            return {
+                "success": True,
+                "message": f"Current average {current_avg:.2f} is already ≤ {target}. No improvement needed.",
+                "needed": None
+            }
+
+        # Find required grade with weight 1
+        remaining_weight = 1
+        needed_grade = (target * (current_weight + remaining_weight) - current_sum) / remaining_weight
+
+        if needed_grade > 5:
+            return {
+                "success": False,
+                "message": f"Impossible to reach {target} with current grades. Maximum possible: {((current_sum + 5 * remaining_weight) / (current_weight + remaining_weight)):.2f}"
+            }
+
+        return {
+            "success": True,
+            "message": f"To reach {target}, you need grade {needed_grade:.1f} with weight {remaining_weight}.",
+            "needed": needed_grade,
+            "weight": remaining_weight
+        }
