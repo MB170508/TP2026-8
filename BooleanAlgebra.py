@@ -7,6 +7,9 @@ Expression examples: "A·B + C", "~A + B·C", "(A + B) · C"
 import itertools
 import re
 
+# ── Configuration ──────────────────────────────────────────────
+MAX_VARIABLES = 12  # 2^12 = 4,096 rows; prevents exponential computation
+
 
 def parse_expression(expr: str) -> list[tuple[str, dict]] | None:
     """Parse boolean expression, return truth table rows or None on error."""
@@ -86,6 +89,15 @@ def simplify_expression(expr: str) -> dict:
 
     vars_found = sorted(set(re.findall(r'[A-Z]', expr)))
     n = len(vars_found)
+
+    # Check variable count limit
+    if n > MAX_VARIABLES:
+        return {
+            "success": False,
+            "message": f"Too many variables ({n}). Maximum is {MAX_VARIABLES}. "
+                      f"This would require {2**n:,} truth table rows.",
+        }
+
     minterms = get_minterms(table)
     maxterms = get_maxterms(table)
 

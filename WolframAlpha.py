@@ -4,12 +4,16 @@ Handles credential storage, query execution, and result parsing.
 """
 
 import json
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+# ─── Configuration ───────────────────────────────────────────────
+QUERY_TIMEOUT = 15  # Timeout in seconds for API queries
 
 # ─── Credential Management ───────────────────────────────────────
 
@@ -111,7 +115,7 @@ def _execute_raw_query(app_id, query_text, assumptions=None):
     request = urllib.request.Request(url, headers={"User-Agent": "Python/WolframAlpha"})
 
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=QUERY_TIMEOUT) as response:
             body = response.read()
             return {
                 "success": True,
@@ -119,6 +123,12 @@ def _execute_raw_query(app_id, query_text, assumptions=None):
                 "content_type": response.headers.get("Content-Type", ""),
                 "body": body,
             }
+    except socket.timeout:
+        return {
+            "success": False,
+            "error": "timeout",
+            "message": "Query timed out. The Wolfram Alpha service is slow or unreachable.",
+        }
     except urllib.error.HTTPError as e:
         return {
             "success": False,
@@ -230,8 +240,13 @@ def query(query_text, app_id, assumptions=None):
     raw = _execute_raw_query(app_id.strip(), query_text.strip(), assumptions)
     if not raw["success"]:
         error_msg = raw.get("error", "Failed to connect to Wolfram Alpha.")
-        if raw.get("status") in (401, 403) or "Invalid appid" in error_msg:
+
+        # Handle timeout specifically
+        if raw.get("error") == "timeout":
+            error_msg = "Query took too long to complete. Try again or try a simpler query."
+        elif raw.get("status") in (401, 403) or "Invalid appid" in error_msg:
             error_msg = "Invalid API key. Please check and try again."
+
         return {
             "success": False,
             "message": error_msg,

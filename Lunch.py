@@ -4,13 +4,18 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
+# ─── Configuration ───────────────────────────────────────────────
+FETCH_TIMEOUT = 10  # Timeout in seconds for menu fetch
+
 
 def fetch_lunch_menu() -> list[dict]:
     """Fetch the weekly lunch menu, limited to today through next 5 work days."""
     url = "https://stravovani.sspbrno.cz/login"
 
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, timeout=FETCH_TIMEOUT)
+    except requests.Timeout:
+        return [{"date": "Error", "day_name": "Connection timeout", "meals": [{"name": "Error", "items": ["Menu server took too long to respond. Try again."]}]}]
     except requests.RequestException as e:
         return [{"date": "Error", "day_name": "Connection failed", "meals": [{"name": "Error", "items": [str(e)]}]}]
 
@@ -113,6 +118,12 @@ class LunchMenuManager:
             return {"success": True, "menu": menu}
         except Exception as e:
             return {"success": False, "message": f"Failed to fetch menu: {str(e)}"}
+
+    def get_menu_or_cached(self) -> dict:
+        """Get cached menu if valid, otherwise try to fetch."""
+        if self.is_cache_valid() and self.last_menu:
+            return {"success": True, "menu": self.last_menu, "is_cached": True}
+        return self.fetch_menu()
 
     def get_cached_menu(self) -> dict:
         """Get the last fetched menu if available."""

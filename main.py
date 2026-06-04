@@ -10,9 +10,17 @@ from Notes import NotesManager
 from EduPage import EduPageManager
 from Lunch import LunchMenuManager
 from WolframAlpha import WolframAlphaManager
+from utilities.validators import (
+    validate_ipv4_network,
+    validate_positive_integer,
+    validate_float,
+    validate_api_key,
+    validate_boolean_expression,
+)
 
 # ── Constants ──────────────────────────────────────────────────
 CARD_BACKGROUND = "#1F000000"
+OVERLAY_BACKGROUND = "#0F000000"
 PRIMARY_COLOR = ft.Colors.PRIMARY
 ERROR_COLOR = ft.Colors.RED
 SUCCESS_COLOR = ft.Colors.GREEN
@@ -85,6 +93,12 @@ def main(page: ft.Page):
     def sub(text):
         return ft.Text(text, size=12, color=GREY_COLOR)
 
+    def set_error(error_widget, message, color=ERROR_COLOR):
+        """Set error widget text and color, then update page."""
+        error_widget.value = message
+        error_widget.color = color
+        page.update()
+
     # ═══════════════════════════════════════════════════════
     # TAB 0: IPv4 Subnet Calculator
     # ═══════════════════════════════════════════════════════
@@ -94,6 +108,27 @@ def main(page: ft.Page):
     subnet_result_col = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO)
     network_input = ft.TextField(label="Network (e.g. 192.168.10.0/24)", width=280, content_padding=8)
     segment_input = ft.TextField(label="Users", width=100, keyboard_type=ft.KeyboardType.NUMBER, content_padding=8)
+
+    def validate_network_field(e):
+        """Real-time validation for network CIDR input."""
+        if not e.control.value:
+            subnet_error.value = ""
+        else:
+            is_valid, error_msg = validate_ipv4_network(e.control.value)
+            subnet_error.value = error_msg if not is_valid else ""
+        page.update()
+
+    def validate_segment_field(e):
+        """Real-time validation for user count input."""
+        if not e.control.value:
+            subnet_error.value = ""
+        else:
+            is_valid, error_msg = validate_positive_integer(e.control.value, max_val=1000)
+            subnet_error.value = error_msg if not is_valid else ""
+        page.update()
+
+    network_input.on_change = validate_network_field
+    segment_input.on_change = validate_segment_field
 
     def build_segments():
         subnet_display.controls.clear()
@@ -154,7 +189,7 @@ def main(page: ft.Page):
                     ], spacing=2),
                     padding=8,
                     border_radius=6,
-                    bgcolor="#1F000000",
+                    bgcolor=CARD_BACKGROUND,
                 )
             )
         page.update()
@@ -243,7 +278,7 @@ def main(page: ft.Page):
                         ], spacing=2),
                         padding=6,
                         border_radius=4,
-                        bgcolor="#0F000000",
+                        bgcolor=OVERLAY_BACKGROUND,
                     )
                 )
 
@@ -286,6 +321,17 @@ def main(page: ft.Page):
     bool_result = ft.Column(spacing=6, scroll=ft.ScrollMode.AUTO)
     bool_input = ft.TextField(label="Expression (e.g. A·B + ~C)", width=300, content_padding=8)
     truth_table_text = ft.Text("", size=10, font_family="monospace", selectable=True)
+
+    def validate_bool_expression(e):
+        """Real-time validation for boolean expression."""
+        if not e.control.value:
+            bool_error.value = ""
+        else:
+            is_valid, error_msg = validate_boolean_expression(e.control.value)
+            bool_error.value = error_msg if not is_valid else ""
+        page.update()
+
+    bool_input.on_change = validate_bool_expression
 
     def simplify_bool(e):
         bool_result.controls.clear()
@@ -360,6 +406,17 @@ def main(page: ft.Page):
     unit_from = ft.Dropdown(label="From", width=140, content_padding=8)
     unit_to = ft.Dropdown(label="To", width=140, content_padding=8)
     unit_value = ft.TextField(label="Value", width=100, keyboard_type=ft.KeyboardType.NUMBER, content_padding=8)
+
+    def validate_unit_value(e):
+        """Real-time validation for conversion value."""
+        if not e.control.value:
+            unit_error.value = ""
+        else:
+            is_valid, error_msg = validate_float(e.control.value, min_val=0)
+            unit_error.value = error_msg if not is_valid else ""
+        page.update()
+
+    unit_value.on_change = validate_unit_value
 
     def on_category_change(e):
         category = e.data if e and e.data else unit_converter.current_category
@@ -449,7 +506,7 @@ def main(page: ft.Page):
                         content=ft.Text(f"{item['value']} {item['from_unit']} → {item['result']:.4g} {item['to_unit']}", size=12),
                         padding=6,
                         border_radius=4,
-                        bgcolor="#0F000000",
+                        bgcolor=OVERLAY_BACKGROUND,
                     )
                 )
 
@@ -584,7 +641,7 @@ def main(page: ft.Page):
                                 btn("New Quiz", start_quiz_handler)
                             ], spacing=10)
                         ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        padding=20, border_radius=10, bgcolor="#1F000000", alignment=ft.alignment.center,
+                        padding=20, border_radius=10, bgcolor=CARD_BACKGROUND, alignment=ft.Alignment.CENTER,
                     )
                 )
             else:
@@ -606,7 +663,7 @@ def main(page: ft.Page):
                         ft.Text(front_text, size=20, weight=ft.FontWeight.BOLD),
                         ft.Text("Click to reveal answer", size=12, color=GREY_500_COLOR),
                     ], spacing=6, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=20, border_radius=10, bgcolor="#1F000000", alignment=ft.alignment.center,
+                    padding=20, border_radius=10, bgcolor=CARD_BACKGROUND, alignment=ft.Alignment.CENTER,
                 )
             )
             fc_card_display.controls.append(
@@ -626,7 +683,7 @@ def main(page: ft.Page):
                         ft.Text("Back", size=11, color=GREY_COLOR),
                         ft.Text(back_text, size=16),
                     ], spacing=6, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=20, border_radius=10, bgcolor="#1F000000", alignment=ft.alignment.center,
+                    padding=20, border_radius=10, bgcolor=CARD_BACKGROUND, alignment=ft.Alignment.CENTER,
                 )
             )
             fc_card_display.controls.append(
@@ -677,7 +734,7 @@ def main(page: ft.Page):
     notes_list = ft.Column(spacing=2, scroll=ft.ScrollMode.AUTO)
     notes_list_header = ft.Text("Notes", size=13, weight=ft.FontWeight.W_600, visible=False)
     note_title_input = ft.TextField(label="Note title", width=180, content_padding=8)
-    editor_frame = ft.Column(scroll=ft.ScrollMode.AUTO)
+    editor_frame = ft.Row(scroll=ft.ScrollMode.AUTO)
     note_editor = ft.TextField(
         label="Write...",
         multiline=True,
@@ -871,30 +928,9 @@ def main(page: ft.Page):
     lunch_loading = ft.Text("Loading menu...", size=13, color=GREY_COLOR)
     lunch_status = ft.Text("", size=12, color=GREY_500_COLOR)
 
-    def load_lunch(e=None):
-        lunch_loading.visible = True
-        lunch_error.value = ""
-        lunch_status.value = ""
+    def display_lunch_menu(menu):
+        """Helper: Display lunch menu in lunch_display column."""
         lunch_display.controls.clear()
-        page.update()
-
-        result = lunch_manager.fetch_menu()
-
-        lunch_loading.visible = False
-
-        if not result["success"]:
-            lunch_error.value = result["message"]
-            page.update()
-            return
-
-        menu = result["menu"]
-        lunch_status.value = f"Menu updated at {lunch_manager.last_fetch_time.strftime('%H:%M')}"
-
-        if not menu:
-            lunch_error.value = "No menu data found."
-            page.update()
-            return
-
         for day in menu:
             if not day["meals"]:
                 continue
@@ -929,14 +965,62 @@ def main(page: ft.Page):
                     ] + day_items, spacing=3),
                     padding=8,
                     border_radius=8,
-                    bgcolor="#1F000000",
+                    bgcolor=CARD_BACKGROUND,
                 )
             )
 
+    def load_lunch(e=None):
+        """Fetch and display fresh lunch menu. On error, fallback to cache."""
+        lunch_loading.visible = True
+        lunch_error.value = ""
+        lunch_status.value = ""
+        lunch_display.controls.clear()
         page.update()
 
+        result = lunch_manager.fetch_menu()
+        lunch_loading.visible = False
+
+        if not result["success"]:
+            # Error during fetch; try fallback to cache
+            cached = lunch_manager.get_cached_menu()
+            if cached["success"]:
+                display_lunch_menu(cached["menu"])
+                set_error(lunch_error, f"⚠️ Using cached menu (failed to fetch: {result['message']})", color=ORANGE_COLOR)
+                lunch_status.value = f"Cached at {lunch_manager.last_fetch_time.strftime('%H:%M') if lunch_manager.last_fetch_time else 'unknown'}"
+            else:
+                set_error(lunch_error, result["message"])
+            page.update()
+            return
+
+        menu = result["menu"]
+        if not menu:
+            set_error(lunch_error, "No menu data found.")
+            page.update()
+            return
+
+        display_lunch_menu(menu)
+        lunch_status.value = f"Menu updated at {lunch_manager.last_fetch_time.strftime('%H:%M')}"
+        page.update()
+
+    def load_lunch_startup():
+        """Load lunch menu on startup: show cache first, then fetch fresh."""
+        # Show cached menu immediately if valid
+        if lunch_manager.is_cache_valid() and lunch_manager.last_menu:
+            display_lunch_menu(lunch_manager.last_menu)
+            lunch_status.value = f"Cached menu (fetching fresh...)"
+            page.update()
+            # Fetch fresh in background
+            result = lunch_manager.fetch_menu()
+            if result["success"] and result["menu"]:
+                display_lunch_menu(result["menu"])
+                lunch_status.value = f"Menu updated at {lunch_manager.last_fetch_time.strftime('%H:%M')}"
+            page.update()
+        else:
+            # No valid cache, fetch fresh
+            load_lunch()
+
     # Load menu on startup
-    load_lunch()
+    load_lunch_startup()
 
     lunch_page_content = ft.Column([
         section("Lunch Menu (Jídelníček)"),
@@ -1347,6 +1431,7 @@ def main(page: ft.Page):
     wolf_status_row = ft.Row([ft.Icon(ft.Icons.CLOUD_OFF, size=20, color=ERROR_COLOR)], spacing=0)
     wolf_status_text = ft.Text("Not logged in", size=12, color=ERROR_COLOR)
     wolf_error = ft.Text("", size=12, color=ERROR_COLOR)
+    wolf_loading = ft.Text("", size=12, color=GREY_COLOR)
     wolf_api_input = ft.TextField(label="API Key", width=250, password=True, can_reveal_password=True, content_padding=8)
     wolf_query_input = ft.TextField(label="Ask Wolfram Alpha...", width=400, content_padding=8)
     wolf_assumptions_input = ft.TextField(label="Assumptions (comma-separated, optional)", width=300, content_padding=8, visible=False)
@@ -1354,6 +1439,17 @@ def main(page: ft.Page):
     wolf_history_list = ft.Column(spacing=2, scroll=ft.ScrollMode.AUTO)
     wolf_view_mode = ["simple"]  # "simple" or "detailed"
     wolf_current_result = {"simple": [], "detailed": []}
+
+    def validate_wolf_api_key(e):
+        """Real-time validation for Wolfram Alpha API key."""
+        if not e.control.value:
+            wolf_error.value = ""
+        else:
+            is_valid, error_msg = validate_api_key(e.control.value, min_length=10)
+            wolf_error.value = error_msg if not is_valid else ""
+        page.update()
+
+    wolf_api_input.on_change = validate_wolf_api_key
 
     def wolf_update_status():
         """Update login status display."""
@@ -1381,27 +1477,28 @@ def main(page: ft.Page):
     def wolf_paste_key(e):
         """Paste API key from clipboard and validate."""
         wolf_error.value = ""
+        wolf_loading.value = ""
         try:
             import pyperclip
             clipboard_text = pyperclip.paste().strip()
         except Exception:
-            wolf_error.value = "Could not access clipboard. Please paste manually."
-            page.update()
+            set_error(wolf_error, "Could not access clipboard. Please paste manually.")
             return
 
         if not clipboard_text:
-            wolf_error.value = "Clipboard is empty."
-            page.update()
+            set_error(wolf_error, "Clipboard is empty.")
             return
 
         wolf_api_input.value = clipboard_text
 
-        # Validate and set key
-        result = wolf_manager.set_api_key(clipboard_text)
-        wolf_error.value = result["message"]
-        wolf_error.color = SUCCESS_COLOR if result["success"] else ERROR_COLOR
-        wolf_update_status()
+        # Show loading and validate
+        wolf_loading.value = "Validating API key..."
         page.update()
+
+        result = wolf_manager.set_api_key(clipboard_text)
+        wolf_loading.value = ""
+        set_error(wolf_error, result["message"], SUCCESS_COLOR if result["success"] else ERROR_COLOR)
+        wolf_update_status()
 
     def wolf_forget_key(e):
         """Clear saved API key."""
@@ -1415,20 +1512,21 @@ def main(page: ft.Page):
     def wolf_validate_manual_key(e):
         """Validate manually entered API key."""
         wolf_error.value = ""
+        wolf_loading.value = ""
         input_text = wolf_api_input.value.strip()
 
         if not input_text:
-            wolf_error.value = "Please enter an API key."
-            wolf_error.color = ORANGE_COLOR
-            page.update()
+            set_error(wolf_error, "Please enter an API key.", ORANGE_COLOR)
             return
 
-        # Validate and set key
-        result = wolf_manager.set_api_key(input_text)
-        wolf_error.value = result["message"]
-        wolf_error.color = SUCCESS_COLOR if result["success"] else ERROR_COLOR
-        wolf_update_status()
+        # Show loading and validate
+        wolf_loading.value = "Validating API key..."
         page.update()
+
+        result = wolf_manager.set_api_key(input_text)
+        wolf_loading.value = ""
+        set_error(wolf_error, result["message"], SUCCESS_COLOR if result["success"] else ERROR_COLOR)
+        wolf_update_status()
 
     def wolf_execute_query(e):
         """Execute Wolfram Alpha query."""
@@ -1484,7 +1582,7 @@ def main(page: ft.Page):
                         content=ft.Text(res_text, size=13, selectable=True),
                         padding=10,
                         border_radius=6,
-                        bgcolor="#1F000000",
+                        bgcolor=CARD_BACKGROUND,
                         border=ft.Border.all(1, GREY_400_COLOR)
                     )
                 )
@@ -1504,7 +1602,7 @@ def main(page: ft.Page):
                         content=ft.Column(pod_content, spacing=4),
                         padding=10,
                         border_radius=6,
-                        bgcolor="#1F000000",
+                        bgcolor=CARD_BACKGROUND,
                         border=ft.Border.all(1, BLUE_300_COLOR)
                     )
                 )
@@ -1578,6 +1676,7 @@ def main(page: ft.Page):
 
         wolf_api_input,
         wolf_error,
+        wolf_loading,
 
         ft.Divider(),
 
