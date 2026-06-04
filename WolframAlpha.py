@@ -11,9 +11,15 @@ import urllib.request
 import webbrowser
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from time import time
 
-# ─── Configuration ───────────────────────────────────────────────
-QUERY_TIMEOUT = 15  # Timeout in seconds for API queries
+from config import config_manager
+from utilities.logger import get_logger
+from utilities.rate_limiter import RateLimiter
+
+# ─── Logging & Configuration ─────────────────────────────────────
+logger = get_logger(__name__)
+limiter = RateLimiter(calls_per_window=5, window_seconds=60)
 
 # ─── Credential Management ───────────────────────────────────────
 
@@ -114,9 +120,16 @@ def _execute_raw_query(app_id, query_text, assumptions=None):
     url = _build_query_url(app_id.strip(), query_text.strip(), assumptions)
     request = urllib.request.Request(url, headers={"User-Agent": "Python/WolframAlpha"})
 
+    # Get timeout from config
+    timeout = config_manager.get("wolfram_timeout", 15)
+    logger.debug(f"Executing query with {timeout}s timeout")
+
     try:
-        with urllib.request.urlopen(request, timeout=QUERY_TIMEOUT) as response:
+        start = time()
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             body = response.read()
+            elapsed = time() - start
+            logger.debug(f"Query completed in {elapsed:.2f}s")
             return {
                 "success": True,
                 "status": response.status,
@@ -124,12 +137,14 @@ def _execute_raw_query(app_id, query_text, assumptions=None):
                 "body": body,
             }
     except socket.timeout:
+        logger.warning(f"Query timed out after {timeout}s")
         return {
             "success": False,
             "error": "timeout",
             "message": "Query timed out. The Wolfram Alpha service is slow or unreachable.",
         }
     except urllib.error.HTTPError as e:
+        logger.error(f"HTTP error {e.code}: {e}")
         return {
             "success": False,
             "status": e.code,
@@ -138,11 +153,13 @@ def _execute_raw_query(app_id, query_text, assumptions=None):
             "error": str(e),
         }
     except urllib.error.URLError as e:
+        logger.error(f"URL error: {e.reason if hasattr(e, 'reason') else e}")
         return {
             "success": False,
             "error": str(e.reason) if hasattr(e, "reason") else str(e),
         }
     except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
         return {
             "success": False,
             "error": str(e),
@@ -191,28 +208,43 @@ def _parse_raw_response(body):
 def validate_api_key(app_id):
     """Test API key with a simple query. Returns True if valid, False otherwise."""
     if not app_id or not app_id.strip():
+        logger.debug("API key validation failed: empty key")
         return False
 
+    # Check rate limit
+    allowed, wait = limiter.is_allowed("wolfram_validate")
+    if not allowed:
+        logger.warning(f"Rate limit: API key validation blocked, wait {wait:.1f}s")
+        return False
+
+    logger.debug("Validating API key")
     raw = _execute_raw_query(app_id.strip(), "1+1")
     if not raw["success"] or raw.get("status") != 200:
+        logger.warning("API key validation failed: invalid response")
         return False
 
     try:
         parsed = _parse_raw_response(raw["body"])
-        return parsed["success"]
-    except Exception:
+        success = parsed["success"]
+        if success:
+            logger.info("API key validation successful")
+        else:
+            logger.warning("API key validation failed: parse error")
+        return success
+    except Exception as e:
+        logger.error(f"API key validation error: {e}")
         return False
 
 
 def query(query_text, app_id, assumptions=None):
     """
     Execute a Wolfram Alpha query.
-    
+
     Args:
         query_text: Question or expression to query
         app_id: Wolfram Alpha API key
         assumptions: List of assumption strings (optional)
-    
+
     Returns:
         {
             "success": bool,
@@ -224,19 +256,33 @@ def query(query_text, app_id, assumptions=None):
         }
     """
     if not query_text or not query_text.strip():
+        logger.debug("Query rejected: empty query")
         return {
             "success": False,
             "message": "Query cannot be empty.",
             "results": {"simple": [], "detailed": []}
         }
-    
+
     if not app_id or not app_id.strip():
+        logger.warning("Query attempted without API key")
         return {
             "success": False,
             "message": "API key not set. Please log in first.",
             "results": {"simple": [], "detailed": []}
         }
 
+    # Check rate limit
+    allowed, wait = limiter.is_allowed("wolfram")
+    if not allowed:
+        msg = f"Rate limited. Please wait {wait:.0f}s before next query."
+        logger.warning(f"Query rate limited: {msg}")
+        return {
+            "success": False,
+            "message": msg,
+            "results": {"simple": [], "detailed": []}
+        }
+
+    logger.debug(f"Executing query: {query_text[:50]}...")
     raw = _execute_raw_query(app_id.strip(), query_text.strip(), assumptions)
     if not raw["success"]:
         error_msg = raw.get("error", "Failed to connect to Wolfram Alpha.")
@@ -247,6 +293,7 @@ def query(query_text, app_id, assumptions=None):
         elif raw.get("status") in (401, 403) or "Invalid appid" in error_msg:
             error_msg = "Invalid API key. Please check and try again."
 
+        logger.warning(f"Query failed: {error_msg}")
         return {
             "success": False,
             "message": error_msg,
@@ -255,7 +302,8 @@ def query(query_text, app_id, assumptions=None):
 
     try:
         parsed = _parse_raw_response(raw["body"])
-    except ET.ParseError:
+    except ET.ParseError as e:
+        logger.error(f"Parse error: {e}")
         return {
             "success": False,
             "message": "Could not parse Wolfram Alpha response.",
@@ -263,19 +311,23 @@ def query(query_text, app_id, assumptions=None):
         }
 
     if not parsed["success"]:
+        msg = parsed["error_message"] or "No results found."
+        logger.debug(f"Query executed but returned no results: {msg}")
         return {
             "success": False,
-            "message": parsed["error_message"] or "No results found.",
+            "message": msg,
             "results": {"simple": [], "detailed": []}
         }
 
     if not parsed["simple_results"]:
+        logger.debug("Query executed but returned no results")
         return {
             "success": False,
             "message": "Query executed but returned no results.",
             "results": {"simple": [], "detailed": []}
         }
 
+    logger.info(f"Query successful: {len(parsed['simple_results'])} result(s)")
     return {
         "success": True,
         "message": f"Found {len(parsed['simple_results'])} result(s).",
@@ -357,29 +409,38 @@ class WolframAlphaManager:
     """Wolfram Alpha API integration manager."""
 
     def __init__(self):
+        logger.debug("Initializing WolframAlphaManager")
         self.api_key = load_api_key()
         self.history = get_query_history()
+        if self.api_key:
+            logger.info("API key loaded from storage")
 
     def set_api_key(self, key: str) -> dict:
         """Set and validate API key."""
         if not key or not key.strip():
+            logger.warning("set_api_key: empty key provided")
             return {"success": False, "message": "API key cannot be empty."}
 
+        logger.debug("Validating new API key")
         # Validate key
         if not validate_api_key(key.strip()):
+            logger.warning("set_api_key: validation failed")
             return {"success": False, "message": "Invalid API key. Please check and try again."}
 
         # Save key
         result = save_api_key(key.strip())
         if result["success"]:
             self.api_key = key.strip()
+            logger.info("API key successfully set and validated")
         return result
 
     def clear_api_key(self) -> dict:
         """Clear stored API key."""
+        logger.debug("Clearing API key")
         result = clear_api_key()
         if result["success"]:
             self.api_key = None
+            logger.info("API key cleared")
         return result
 
     def has_api_key(self) -> bool:
@@ -389,16 +450,19 @@ class WolframAlphaManager:
     def query(self, query_text: str, assumptions=None) -> dict:
         """Execute a Wolfram Alpha query."""
         if not self.api_key:
+            logger.warning("query: no API key set")
             return {
                 "success": False,
                 "message": "API key not set. Please log in first.",
                 "results": {"simple": [], "detailed": []}
             }
 
+        logger.debug(f"WolframAlphaManager.query: {query_text[:50]}...")
         result = query(query_text, self.api_key, assumptions)
         if result["success"]:
             save_query_to_history(query_text, result)
             self.history = get_query_history()  # Refresh history
+            logger.info(f"Query added to history")
         return result
 
     def get_history(self) -> list:
@@ -407,11 +471,14 @@ class WolframAlphaManager:
 
     def clear_history(self) -> dict:
         """Clear query history."""
+        logger.debug("Clearing query history")
         result = clear_history()
         if result["success"]:
             self.history = []
+            logger.info("Query history cleared")
         return result
 
     def open_portal(self) -> bool:
         """Open Wolfram Alpha API portal in browser."""
+        logger.debug("Opening Wolfram Alpha API portal")
         return open_api_portal()

@@ -5,6 +5,14 @@ from edupage_api import Edupage
 from edupage_api.exceptions import BadCredentialsException, CaptchaException
 import keyring
 
+from config import config_manager
+from utilities.logger import get_logger
+from utilities.rate_limiter import RateLimiter
+
+# ─── Logging & Configuration ─────────────────────────────────────
+logger = get_logger(__name__)
+limiter = RateLimiter(calls_per_window=5, window_seconds=60)
+
 
 def save_credentials(subdomain: str, username: str, password: str) -> bool:
     """Save credentials to keyring if available."""
@@ -55,11 +63,14 @@ class EduSession:
     def login(self) -> dict:
         """Authenticate and return status dict."""
         if self._logged_in:
+            logger.debug("Already logged in to EduPage")
             return {"success": True}
 
+        logger.debug(f"Attempting EduPage login for {self.username}@{self.subdomain}")
         try:
             result = self.edupage.login(self.username, self.password, self.subdomain)
             if result is not None:
+                logger.warning("EduPage login: 2FA required")
                 return {"success": False, "message": "Two-factor auth required. Disable it temporarily."}
             self._logged_in = True
 
@@ -67,13 +78,17 @@ class EduSession:
             students = self.edupage.get_students()
             if students:
                 self._student = students[0]
+                logger.info(f"EduPage login successful, student: {self._student}")
 
             return {"success": True}
         except BadCredentialsException:
+            logger.warning(f"EduPage login failed: invalid credentials")
             return {"success": False, "message": "Invalid username or password."}
         except CaptchaException:
+            logger.warning("EduPage login failed: CAPTCHA required")
             return {"success": False, "message": "CAPTCHA required. Try logging in from a browser first."}
         except Exception as e:
+            logger.error(f"EduPage login error: {e}")
             return {"success": False, "message": f"Login error: {e}"}
 
     def get_grades(self) -> dict:
@@ -83,6 +98,7 @@ class EduSession:
             if not r["success"]:
                 return r
 
+        logger.debug("Fetching grades from EduPage")
         try:
             grades = self.edupage.get_grades()
             subjects = {}
@@ -101,12 +117,14 @@ class EduSession:
                     "class_avg": g.class_grade_avg,
                 })
 
+            logger.info(f"Fetched {len(grades)} grades in {len(subjects)} subjects")
             return {
                 "success": len(subjects) > 0,
                 "subjects": [{"name": k, "grades": v} for k, v in subjects.items()],
                 "message": f"Found {len(grades)} grades in {len(subjects)} subjects." if subjects else "No grades found.",
             }
         except Exception as e:
+            logger.error(f"Error fetching grades: {e}")
             return {"success": False, "message": f"Error fetching grades: {e}"}
 
     def get_timetable(self, week_offset: int = 0) -> dict:
@@ -315,6 +333,7 @@ class EduPageManager:
     """Manages EduPage session and integrated grade calculation."""
 
     def __init__(self):
+        logger.debug("Initializing EduPageManager")
         self.session = None
         self.manual_grades = {}  # subject -> list of (grade, weight) tuples
         self.remember_creds = False
@@ -324,6 +343,7 @@ class EduPageManager:
 
     def set_credentials(self, subdomain: str, username: str, password: str, remember: bool = False):
         """Set login credentials."""
+        logger.debug(f"Setting EduPage credentials for {username}@{subdomain}")
         self.subdomain = subdomain
         self.username = username
         self.password = password
@@ -331,39 +351,62 @@ class EduPageManager:
 
         if remember:
             save_credentials(subdomain, username, password)
+            logger.info("EduPage credentials saved to keyring")
         else:
             clear_credentials()
+            logger.debug("EduPage credentials cleared from keyring")
 
     def load_saved_credentials(self):
         """Load saved credentials if available."""
+        logger.debug("Loading saved EduPage credentials")
         creds = load_credentials()
         if creds:
             self.subdomain = creds["subdomain"]
             self.username = creds["username"]
             self.password = creds["password"]
             self.remember_creds = True
+            logger.info(f"Loaded saved credentials for {creds['username']}")
             return creds
+        logger.debug("No saved credentials found")
         return None
 
     def login(self) -> dict:
         """Login to EduPage."""
         if not self.subdomain or not self.username or not self.password:
+            logger.warning("EduPage login attempted with incomplete credentials")
             return {"success": False, "message": "Credentials not set."}
 
+        logger.debug("EduPageManager.login: creating session and logging in")
         self.session = EduSession(self.subdomain, self.username, self.password)
         result = self.session.login()
         if result["success"]:
             result["message"] = "Logged in successfully!"
+            logger.info("EduPageManager login successful")
+        else:
+            logger.warning(f"EduPageManager login failed: {result.get('message', 'unknown error')}")
         return result
 
     def get_dashboard_data(self) -> dict:
         """Get all dashboard data including integrated grades."""
+        logger.debug("get_dashboard_data: fetching all dashboard data")
+
+        # Check rate limit
+        allowed, wait = limiter.is_allowed("edupage")
+        if not allowed:
+            logger.warning(f"Rate limit: dashboard data blocked, wait {wait:.1f}s")
+            return {
+                "success": False,
+                "message": f"Rate limited. Please wait {wait:.0f}s before next request."
+            }
+
         if not self.session:
+            logger.debug("No session, attempting login")
             login_result = self.login()
             if not login_result["success"]:
                 return login_result
 
         # Fetch all data
+        logger.debug("Fetching: grades, timetable, homework, tests, class_averages, substitutions")
         grades = self.session.get_grades()
         timetable = self.session.get_timetable()
         homework = self.session.get_homework()
@@ -374,6 +417,7 @@ class EduPageManager:
 
         # Integrate manual grades with EduPage grades
         integrated_grades = self._integrate_grades(grades)
+        logger.info("Dashboard data fetched successfully")
 
         return {
             "success": True,

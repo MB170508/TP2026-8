@@ -1,3 +1,4 @@
+import asyncio
 import flet as ft
 from IPv4Subnetting import SubnetCalculator
 from MultiBaseConverter import convert
@@ -17,6 +18,13 @@ from utilities.validators import (
     validate_api_key,
     validate_boolean_expression,
 )
+from config import config_manager
+from utilities.logger import get_logger, init_logging
+from utilities.async_helpers import run_in_thread
+
+# Initialize logging on app startup
+init_logging()
+logger = get_logger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────
 CARD_BACKGROUND = "#1F000000"
