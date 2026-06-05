@@ -1,16 +1,16 @@
 import asyncio
 import flet as ft
-from managers.IPv4Subnetting import SubnetCalculator
-from managers.MultiBaseConverter import convert
-from managers.MultiBaseCalc import MultiBaseCalculator
-from managers.UnitConverter import UnitConverter
-from managers.BooleanAlgebra import BooleanAlgebraSimplifier
-from managers.ScientificCalculator import ScientificCalculator
-from managers.Flashcards import FlashcardManager
-from managers.Notes import NotesManager
-from managers.EduPage import EduPageManager
-from managers.Lunch import LunchMenuManager
-from managers.WolframAlpha import WolframAlphaManager
+from new.managers.IPv4Subnetting import SubnetCalculator
+from new.managers.MultiBaseConverter import convert
+from new.managers.MultiBaseCalc import MultiBaseCalculator
+from new.managers.UnitConverter import UnitConverter
+from new.managers.BooleanAlgebra import BooleanAlgebraSimplifier
+from new.managers.ScientificCalculator import ScientificCalculator
+from new.managers.Flashcards import FlashcardManager
+from new.managers.Notes import NotesManager
+from new.managers.EduPage import EduPageManager
+from new.managers.Lunch import LunchMenuManager
+from new.managers.WolframAlpha import WolframAlphaManager
 from utilities.validators import (
     validate_ipv4_network,
     validate_positive_integer,
