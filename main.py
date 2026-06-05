@@ -1,16 +1,16 @@
 import asyncio
 import flet as ft
-from IPv4Subnetting import SubnetCalculator
-from MultiBaseConverter import convert
-from MultiBaseCalc import MultiBaseCalculator
-from UnitConverter import UnitConverter
-from BooleanAlgebra import BooleanAlgebraSimplifier
-from ScientificCalculator import ScientificCalculator
-from Flashcards import FlashcardManager
-from Notes import NotesManager
-from EduPage import EduPageManager
-from Lunch import LunchMenuManager
-from WolframAlpha import WolframAlphaManager
+from managers.IPv4Subnetting import SubnetCalculator
+from managers.MultiBaseConverter import convert
+from managers.MultiBaseCalc import MultiBaseCalculator
+from managers.UnitConverter import UnitConverter
+from managers.BooleanAlgebra import BooleanAlgebraSimplifier
+from managers.ScientificCalculator import ScientificCalculator
+from managers.Flashcards import FlashcardManager
+from managers.Notes import NotesManager
+from managers.EduPage import EduPageManager
+from managers.Lunch import LunchMenuManager
+from managers.WolframAlpha import WolframAlphaManager
 from utilities.validators import (
     validate_ipv4_network,
     validate_positive_integer,
@@ -1762,6 +1762,25 @@ def main(page: ft.Page):
             ft.Container(content=tab_bar_view, expand=True),
         ], spacing=0, expand=True),
     )
+
+    def on_keyboard_event(e: ft.KeyboardEvent):
+        """Handle keyboard shortcuts for navigation and actions."""
+        if e.key == "Ctrl+l":  # Load lunch
+            nav.selected_index = 6
+            page.update()
+        elif e.key == "Ctrl+n":  # New note
+            nav.selected_index = 5
+            page.update()
+        elif e.key == "Ctrl+q":  # New Wolfram query
+            nav.selected_index = 9
+            page.update()
+        elif e.key == "Ctrl+d":  # New deck (flashcards)
+            nav.selected_index = 4
+            page.update()
+        elif e.key == "Escape":  # Clear current tab (placeholder)
+            pass
+
+    page.on_keyboard_event = on_keyboard_event
 
     page.add(header, nav)
 
