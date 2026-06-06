@@ -1,7 +1,7 @@
 """Wolfram Alpha Query tab."""
 
 import flet as ft
-from WolframAlpha import WolframAlphaManager
+from managers.WolframAlpha import WolframAlphaManager
 from utilities.validators import validate_api_key
 from ui.components.colors import (
     ERROR_COLOR,

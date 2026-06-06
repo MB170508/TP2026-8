@@ -1,7 +1,7 @@
 """EduPage Dashboard tab."""
 
 import flet as ft
-from EduPage import EduPageManager
+from managers.EduPage import EduPageManager
 from ui.components.colors import (
     ERROR_COLOR,
     SUCCESS_COLOR,
@@ -185,7 +185,7 @@ def create_edupage_tab(page: ft.Page) -> ft.Column:
         page.update()
 
     def edu_login(e):
-        """Login to EduPage and load dashboard."""
+        """Login to EduPage and load dashboard (show cached data while loading)."""
         edu_error.value = ""
         edu_status.value = ""
         edu_content.controls.clear()
@@ -208,16 +208,31 @@ def create_edupage_tab(page: ft.Page) -> ft.Column:
             page.update()
             return
 
-        edu_status.value = "Logged in! Loading data..."
+        # Show status and try to display cached data first
+        edu_status.value = "Loading data..."
         page.update()
 
-        # Get integrated dashboard data
+        # Try to show cached data while fetching new data
+        cached = edu_manager.get_cached_dashboard_data()
+        if cached and cached.get("success"):
+            edu_status.value = "Loading... (showing cached data)"
+            display_dashboard_data(cached)
+            page.update()
+
+        # Get fresh integrated dashboard data
         dashboard = edu_manager.get_dashboard_data()
         if not dashboard["success"]:
             edu_error.value = dashboard["message"]
             page.update()
             return
 
+        # Update with fresh data
+        edu_status.value = dashboard["message"]
+        display_dashboard_data(dashboard)
+        page.update()
+
+    def display_dashboard_data(dashboard):
+        """Display dashboard data in the content area."""
         edu_content.controls.clear()
 
         # Grades section

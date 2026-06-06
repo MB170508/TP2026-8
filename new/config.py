@@ -2,6 +2,7 @@
 
 Manages config file at ~/.ittoolbox/config.json
 Auto-creates with sensible defaults if missing.
+Secrets are stored securely via credential manager.
 """
 
 import json
@@ -17,9 +18,6 @@ CONFIG_DIR = Path.home() / ".ittoolbox"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG = {
-    "wolfram_api_key": "",
-    "edupage_username": "",
-    "edupage_password": "",
     "wolfram_timeout": 15,
     "lunch_timeout": 10,
     "edupage_timeout": 20,
@@ -27,9 +25,12 @@ DEFAULT_CONFIG = {
     "rate_limit_window": 60,
 }
 
+# Sensitive keys stored in secure credential storage (not in config file)
+SECRET_KEYS = {"wolfram_api_key", "edupage_username", "edupage_password"}
+
 
 class ConfigManager:
-    """Singleton config manager with JSON persistence."""
+    """Singleton config manager with JSON persistence and secure credential storage."""
 
     _instance = None
     _config = {}
@@ -73,7 +74,7 @@ class ConfigManager:
             logger.error(f"Failed to save config: {e}")
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Get config value by key.
+        """Get config value by key (for non-sensitive values).
 
         Args:
             key: Config key (e.g., 'wolfram_timeout')
@@ -85,15 +86,67 @@ class ConfigManager:
         return self._config.get(key, default)
 
     def set(self, key: str, value: Any) -> None:
-        """Set config value and persist to file.
+        """Set config value and persist to file (for non-sensitive values).
 
         Args:
             key: Config key
             value: New value
         """
+        if key in SECRET_KEYS:
+            logger.warning(f"Use set_secret() for sensitive values like {key}")
+            return
+
         self._config[key] = value
         self.save()
         logger.debug(f"Set {key} = {value}")
+
+    def get_secret(self, key: str, default: str = "") -> str:
+        """Get secret value from secure credential storage.
+
+        Args:
+            key: Secret key (e.g., 'wolfram_api_key')
+            default: Default value if not found
+
+        Returns:
+            Secret value or default
+        """
+        if key not in SECRET_KEYS:
+            logger.warning(f"{key} is not a known secret key")
+
+        from utilities.credential_manager import cred_manager
+
+        value = cred_manager.get_credential("ittoolbox", key)
+        return value if value is not None else default
+
+    def set_secret(self, key: str, value: str) -> bool:
+        """Store secret value in secure credential storage.
+
+        Args:
+            key: Secret key (e.g., 'wolfram_api_key')
+            value: Secret value
+
+        Returns:
+            True if stored successfully
+        """
+        if key not in SECRET_KEYS:
+            logger.warning(f"{key} is not a known secret key")
+
+        from utilities.credential_manager import cred_manager
+
+        return cred_manager.set_credential("ittoolbox", key, value)
+
+    def delete_secret(self, key: str) -> bool:
+        """Delete secret from secure credential storage.
+
+        Args:
+            key: Secret key
+
+        Returns:
+            True if deleted successfully
+        """
+        from utilities.credential_manager import cred_manager
+
+        return cred_manager.delete_credential("ittoolbox", key)
 
 
 # Global instance

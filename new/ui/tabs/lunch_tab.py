@@ -1,7 +1,7 @@
 """Lunch Menu tab."""
 
 import flet as ft
-from Lunch import LunchMenuManager
+from managers.Lunch import LunchMenuManager
 from ui.components.colors import (
     ERROR_COLOR,
     GREY_COLOR,

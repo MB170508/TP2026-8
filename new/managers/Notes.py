@@ -1,11 +1,16 @@
-"""Notepad with Czech/English word prediction — JSON persistence."""
+"""Notepad with Czech/English word prediction — JSON persistence with timestamps."""
 
 import json
 import os
 import re
+import time
+from pathlib import Path
 
 
-NOTES_PATH = os.path.join(os.path.dirname(__file__), "notes.json")
+# Use app data folder instead of managers directory
+DATA_DIR = Path.home() / ".ittoolbox" / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+NOTES_PATH = DATA_DIR / "notes.json"
 
 # Common Czech words for prediction
 CZ_WORDS = [
@@ -56,12 +61,16 @@ EN_WORDS = [
 
 
 def load_notes(path: str = NOTES_PATH) -> list[dict]:
+    """Load notes sorted by most recent first."""
     if not os.path.exists(path):
         return []
     try:
         with open(path, "r") as f:
             data = json.load(f)
-            return data if isinstance(data, list) else []
+            if isinstance(data, list):
+                # Sort by modified_time (most recent first)
+                return sorted(data, key=lambda n: n.get("modified_time", 0), reverse=True)
+            return []
     except Exception:
         return []
 
@@ -78,13 +87,21 @@ def save_notes(notes: list[dict], path: str = NOTES_PATH) -> bool:
 def create_note(notes: list[dict], title: str) -> list[dict] | None:
     if not title.strip():
         return None
-    notes.append({"title": title.strip(), "content": "", "created": True, "lang": "cz"})
+    now = time.time()
+    notes.append({
+        "title": title.strip(),
+        "content": "",
+        "created_time": now,
+        "modified_time": now,
+        "lang": "cz"
+    })
     return notes
 
 
 def update_note(notes: list[dict], index: int, content: str) -> list[dict] | None:
     if 0 <= index < len(notes):
         notes[index]["content"] = content
+        notes[index]["modified_time"] = time.time()
     return notes
 
 

@@ -1,51 +1,61 @@
-"""EduPage API wrapper — uses the official edupage-api library."""
+"""EduPage API wrapper — uses the official edupage-api library with caching."""
 
 from datetime import date, timedelta
 from edupage_api import Edupage
 from edupage_api.exceptions import BadCredentialsException, CaptchaException
-import keyring
 
 from config import config_manager
 from utilities.logger import get_logger
 from utilities.rate_limiter import RateLimiter
+from utilities.credential_manager import cred_manager
+from utilities.cache_manager import cache_manager
 
 # ─── Logging & Configuration ─────────────────────────────────────
 logger = get_logger(__name__)
 limiter = RateLimiter(calls_per_window=5, window_seconds=60)
 
+# Cache TTL: 30 minutes for dashboard data
+CACHE_TTL_SECONDS = 1800
+
 
 def save_credentials(subdomain: str, username: str, password: str) -> bool:
-    """Save credentials to keyring if available."""
+    """Save credentials to secure credential storage."""
     try:
-        keyring.set_password("edupage", "subdomain", subdomain)
-        keyring.set_password("edupage", "username", username)
-        keyring.set_password("edupage", "password", password)
+        cred_manager.set_credential("edupage", "subdomain", subdomain)
+        cred_manager.set_credential("edupage", "username", username)
+        cred_manager.set_credential("edupage", "password", password)
+        logger.debug("Credentials saved securely")
         return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to save credentials: {e}")
         return False
 
 
 def load_credentials() -> dict | None:
-    """Load credentials from keyring if available."""
+    """Load credentials from secure credential storage."""
     try:
-        subdomain = keyring.get_password("edupage", "subdomain")
-        username = keyring.get_password("edupage", "username")
-        password = keyring.get_password("edupage", "password")
+        subdomain = cred_manager.get_credential("edupage", "subdomain")
+        username = cred_manager.get_credential("edupage", "username")
+        password = cred_manager.get_credential("edupage", "password")
         if subdomain and username and password:
+            logger.debug("Credentials loaded from secure storage")
             return {"subdomain": subdomain, "username": username, "password": password}
         return None
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to load credentials: {e}")
         return None
 
 
 def clear_credentials() -> bool:
-    """Clear credentials from keyring."""
+    """Clear credentials from secure credential storage."""
     try:
-        keyring.delete_password("edupage", "subdomain")
-        keyring.delete_password("edupage", "username")
-        keyring.delete_password("edupage", "password")
+        cred_manager.delete_credential("edupage", "subdomain")
+        cred_manager.delete_credential("edupage", "username")
+        cred_manager.delete_credential("edupage", "password")
+        logger.debug("Credentials cleared from secure storage")
         return True
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to clear credentials: {e}")
         return False
 
 
@@ -387,13 +397,22 @@ class EduPageManager:
         return result
 
     def get_dashboard_data(self) -> dict:
-        """Get all dashboard data including integrated grades."""
+        """Get all dashboard data including integrated grades.
+
+        Uses caching: returns cached data if valid, or fetches fresh data.
+        """
         logger.debug("get_dashboard_data: fetching all dashboard data")
 
         # Check rate limit
         allowed, wait = limiter.is_allowed("edupage")
         if not allowed:
             logger.warning(f"Rate limit: dashboard data blocked, wait {wait:.1f}s")
+            # Try to return cached data while rate limited
+            cached = cache_manager.get_ignore_ttl("edupage_dashboard")
+            if cached:
+                logger.info("Returning cached dashboard data while rate limited")
+                cached["message"] = f"[CACHED] {cached.get('message', 'Data loaded from cache')}"
+                return cached
             return {
                 "success": False,
                 "message": f"Rate limited. Please wait {wait:.0f}s before next request."
@@ -404,6 +423,12 @@ class EduPageManager:
             login_result = self.login()
             if not login_result["success"]:
                 return login_result
+
+        # Check if we have valid cached data
+        cached_data = cache_manager.get("edupage_dashboard")
+        if cached_data:
+            logger.info("Using cached dashboard data")
+            return cached_data
 
         # Fetch all data
         logger.debug("Fetching: grades, timetable, homework, tests, class_averages, substitutions")
@@ -419,7 +444,7 @@ class EduPageManager:
         integrated_grades = self._integrate_grades(grades)
         logger.info("Dashboard data fetched successfully")
 
-        return {
+        result = {
             "success": True,
             "grades": integrated_grades,
             "timetable": timetable,
@@ -430,6 +455,12 @@ class EduPageManager:
             "substitutions": subs,
             "message": "Dashboard data loaded."
         }
+
+        # Cache the result
+        cache_manager.set("edupage_dashboard", result, ttl_seconds=CACHE_TTL_SECONDS)
+        logger.debug(f"Cached dashboard data (TTL: {CACHE_TTL_SECONDS}s)")
+
+        return result
 
     def _integrate_grades(self, edupage_grades: dict) -> dict:
         """Integrate EduPage grades with manual grades."""
@@ -582,3 +613,34 @@ class EduPageManager:
             "needed": needed_grade,
             "weight": remaining_weight
         }
+
+    def get_cached_dashboard_data(self) -> dict | None:
+        """Get cached dashboard data (for offline display).
+
+        Returns:
+            Cached data or None if not in cache
+        """
+        return cache_manager.get_ignore_ttl("edupage_dashboard")
+
+    def get_cache_info(self) -> dict:
+        """Get information about cached dashboard data.
+
+        Returns:
+            Dict with timestamp, age, TTL, is_expired info
+        """
+        info = cache_manager.get_cache_info("edupage_dashboard")
+        return {
+            "success": info is not None,
+            "info": info,
+            "message": "Cache valid" if (info and not info.get("is_expired")) else "Cache expired or empty"
+        }
+
+    def clear_cache(self) -> dict:
+        """Clear cached dashboard data.
+
+        Returns:
+            Success status
+        """
+        success = cache_manager.clear("edupage_dashboard")
+        logger.info("Cleared EduPage dashboard cache")
+        return {"success": success, "message": "Cache cleared"}

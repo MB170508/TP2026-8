@@ -1,7 +1,7 @@
 """Scientific Calculator tab."""
 
 import flet as ft
-from ScientificCalculator import ScientificCalculator
+from managers.ScientificCalculator import ScientificCalculator
 from ui.components.colors import ERROR_COLOR, BLUE_COLOR
 from ui.components.factories import btn, section, sub
 

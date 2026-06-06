@@ -1,7 +1,7 @@
 """Unit Converter tab."""
 
 import flet as ft
-from UnitConverter import UnitConverter
+from managers.UnitConverter import UnitConverter
 from utilities.validators import validate_float
 from ui.components.colors import (
     ERROR_COLOR,

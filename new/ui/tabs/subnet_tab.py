@@ -1,7 +1,7 @@
 """IPv4 Subnet Calculator tab."""
 
 import flet as ft
-from IPv4Subnetting import SubnetCalculator
+from managers.IPv4Subnetting import SubnetCalculator
 from utilities.validators import validate_ipv4_network, validate_positive_integer
 from ui.components.colors import ERROR_COLOR, BLUE_COLOR, CARD_BACKGROUND
 from ui.components.factories import btn, section, sub

@@ -1,7 +1,7 @@
 """Notepad with word prediction tab."""
 
 import flet as ft
-from Notes import NotesManager
+from managers.Notes import NotesManager
 from ui.components.colors import (
     ERROR_COLOR,
     SUCCESS_COLOR,

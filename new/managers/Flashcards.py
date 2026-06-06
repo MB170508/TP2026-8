@@ -1,19 +1,36 @@
-"""Flashcard study system — library functions with JSON persistence."""
+"""Flashcard study system — library functions with JSON persistence and timestamps."""
 
 import json
 import os
 import random
+import time
+from pathlib import Path
 
 
-DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "flashcards.json")
+# Use app data folder instead of managers directory
+DATA_DIR = Path.home() / ".ittoolbox" / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_PATH = DATA_DIR / "flashcards.json"
 
 
 def load_decks(path: str = DEFAULT_PATH) -> dict:
-    """Load all decks from JSON file. Returns dict of deck_name -> list of cards."""
+    """Load all decks from JSON file. Returns dict of deck_name -> list of cards.
+
+    Decks are sorted by most recent first (by modified_time).
+    """
     if not os.path.exists(path):
         return {}
-    with open(path, "r") as f:
-        return json.load(f)
+    try:
+        with open(path, "r") as f:
+            decks = json.load(f)
+            # Sort decks by modified_time (most recent first)
+            if isinstance(decks, dict):
+                return dict(sorted(decks.items(),
+                                   key=lambda x: x[1].get("modified_time", 0) if isinstance(x[1], dict) else 0,
+                                   reverse=True))
+            return {}
+    except Exception:
+        return {}
 
 
 def save_decks(decks: dict, path: str = DEFAULT_PATH) -> bool:
@@ -28,7 +45,12 @@ def save_decks(decks: dict, path: str = DEFAULT_PATH) -> bool:
 def create_deck(decks: dict, name: str) -> dict | None:
     if name.strip() in decks:
         return None
-    decks[name.strip()] = []
+    now = time.time()
+    decks[name.strip()] = {
+        "cards": [],
+        "created_time": now,
+        "modified_time": now
+    }
     return decks
 
 
@@ -40,25 +62,45 @@ def delete_deck(decks: dict, name: str) -> dict:
 def add_card(decks: dict, deck_name: str, front: str, back: str) -> dict | None:
     if deck_name not in decks:
         return None
-    decks[deck_name].append({"front": front, "back": back})
+
+    # Handle both old format (list) and new format (dict with metadata)
+    if isinstance(decks[deck_name], list):
+        # Migrate old format
+        decks[deck_name] = {
+            "cards": decks[deck_name],
+            "created_time": time.time(),
+            "modified_time": time.time()
+        }
+
+    decks[deck_name]["cards"].append({"front": front, "back": back, "added_time": time.time()})
+    decks[deck_name]["modified_time"] = time.time()
     return decks
 
 
 def delete_card(decks: dict, deck_name: str, index: int) -> dict | None:
     if deck_name not in decks:
         return None
-    if 0 <= index < len(decks[deck_name]):
-        decks[deck_name].pop(index)
+
+    cards = decks[deck_name].get("cards") if isinstance(decks[deck_name], dict) else decks[deck_name]
+    if 0 <= index < len(cards):
+        cards.pop(index)
+        if isinstance(decks[deck_name], dict):
+            decks[deck_name]["modified_time"] = time.time()
     return decks
 
 
 def start_quiz(decks: dict, deck_name: str) -> list[dict] | None:
     """Shuffle cards for quiz mode."""
-    if deck_name not in decks or not decks[deck_name]:
+    if deck_name not in decks:
         return None
-    cards = decks[deck_name][:]
-    random.shuffle(cards)
-    return cards
+
+    cards = decks[deck_name].get("cards") if isinstance(decks[deck_name], dict) else decks[deck_name]
+    if not cards:
+        return None
+
+    shuffled = cards[:]
+    random.shuffle(shuffled)
+    return shuffled
 
 
 class FlashcardManager:
@@ -118,12 +160,26 @@ class FlashcardManager:
         """Get information about a deck."""
         if name not in self.decks:
             return {"success": False, "message": "Deck not found."}
-        return {
-            "success": True,
-            "name": name,
-            "card_count": len(self.decks[name]),
-            "cards": self.decks[name]
-        }
+
+        deck = self.decks[name]
+        # Handle both old format (list) and new format (dict with metadata)
+        if isinstance(deck, dict) and "cards" in deck:
+            return {
+                "success": True,
+                "name": name,
+                "card_count": len(deck["cards"]),
+                "cards": deck["cards"],
+                "created_time": deck.get("created_time"),
+                "modified_time": deck.get("modified_time")
+            }
+        else:
+            # Old format
+            return {
+                "success": True,
+                "name": name,
+                "card_count": len(deck) if isinstance(deck, list) else 0,
+                "cards": deck if isinstance(deck, list) else []
+            }
 
     def start_quiz(self, deck_name: str) -> dict:
         """Start a quiz for a deck."""

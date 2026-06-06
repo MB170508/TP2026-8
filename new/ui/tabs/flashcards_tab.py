@@ -1,7 +1,7 @@
 """Flashcards Quiz tab."""
 
 import flet as ft
-from Flashcards import FlashcardManager
+from managers.Flashcards import FlashcardManager
 from ui.components.colors import (
     ERROR_COLOR,
     SUCCESS_COLOR,

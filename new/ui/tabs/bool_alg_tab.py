@@ -1,7 +1,7 @@
 """Boolean Algebra Simplifier tab."""
 
 import flet as ft
-from BooleanAlgebra import BooleanAlgebraSimplifier
+from managers.BooleanAlgebra import BooleanAlgebraSimplifier
 from utilities.validators import validate_boolean_expression
 from ui.components.colors import ERROR_COLOR, SUCCESS_COLOR
 from ui.components.factories import btn, section, sub

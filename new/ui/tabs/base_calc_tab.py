@@ -1,8 +1,8 @@
 """Multi-Base Calculator tab."""
 
 import flet as ft
-from MultiBaseConverter import convert
-from MultiBaseCalc import MultiBaseCalculator
+from managers.MultiBaseConverter import convert
+from managers.MultiBaseCalc import MultiBaseCalculator
 from utilities.validators import validate_positive_integer
 from ui.components.colors import (
     ERROR_COLOR,
