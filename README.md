@@ -29,7 +29,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-The application opens in a desktop window. All features work offline except Lunch and Wolfram Alpha, which require network access.
+The application opens in a desktop window. All features work offline except Lunch, Edupage and Wolfram Alpha, which require network access.
 
 ## Configuration
 
