@@ -432,35 +432,48 @@ class EduPageManager:
 
         # Fetch all data
         logger.debug("Fetching: grades, timetable, homework, tests, class_averages, substitutions")
-        grades = self.session.get_grades()
-        timetable = self.session.get_timetable()
-        homework = self.session.get_homework()
-        attendance = self.session.get_attendance()
-        tests = self.session.get_tests()
-        class_avgs = self.session.get_class_averages()
-        subs = self.session.get_substitutions()
+        try:
+            grades = self.session.get_grades()
+            timetable = self.session.get_timetable()
+            homework = self.session.get_homework()
+            attendance = self.session.get_attendance()
+            tests = self.session.get_tests()
+            class_avgs = self.session.get_class_averages()
+            subs = self.session.get_substitutions()
 
-        # Integrate manual grades with EduPage grades
-        integrated_grades = self._integrate_grades(grades)
-        logger.info("Dashboard data fetched successfully")
+            # Integrate manual grades with EduPage grades
+            integrated_grades = self._integrate_grades(grades)
+            logger.info("Dashboard data fetched successfully")
 
-        result = {
-            "success": True,
-            "grades": integrated_grades,
-            "timetable": timetable,
-            "homework": homework,
-            "attendance": attendance,
-            "tests": tests,
-            "class_averages": class_avgs,
-            "substitutions": subs,
-            "message": "Dashboard data loaded."
-        }
+            result = {
+                "success": True,
+                "grades": integrated_grades,
+                "timetable": timetable,
+                "homework": homework,
+                "attendance": attendance,
+                "tests": tests,
+                "class_averages": class_avgs,
+                "substitutions": subs,
+                "message": "Dashboard data loaded."
+            }
 
-        # Cache the result
-        cache_manager.set("edupage_dashboard", result, ttl_seconds=CACHE_TTL_SECONDS)
-        logger.debug(f"Cached dashboard data (TTL: {CACHE_TTL_SECONDS}s)")
+            # Cache the result
+            cache_manager.set("edupage_dashboard", result, ttl_seconds=CACHE_TTL_SECONDS)
+            logger.debug(f"Cached dashboard data (TTL: {CACHE_TTL_SECONDS}s)")
 
-        return result
+            return result
+        except Exception as e:
+            logger.warning(f"Failed to fetch fresh data: {e}")
+            # Fall back to offline cache
+            cached = cache_manager.get_ignore_ttl("edupage_dashboard")
+            if cached:
+                logger.info("Returning cached dashboard data (offline)")
+                cached["message"] = f"[OFFLINE] {cached.get('message', 'Using cached data')}"
+                return cached
+            return {
+                "success": False,
+                "message": "No internet connection and no cached data available."
+            }
 
     def _integrate_grades(self, edupage_grades: dict) -> dict:
         """Integrate EduPage grades with manual grades."""
