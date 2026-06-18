@@ -1,7 +1,7 @@
 """Boolean algebra simplifier — library functions.
 
-Supports AND (· or &), OR (+ or |), NOT (~ or ! or '), XOR (^).
-Expression examples: "A·B + C", "~A + B·C", "(A + B) · C"
+Supports AND (* or &), OR (+ or |), NOT (~ or ! or '), XOR (^).
+Expression examples: "A*B + C", "~A + B*C", "(A + B) * C"
 """
 
 import itertools
@@ -19,7 +19,6 @@ def parse_expression(expr: str) -> list[tuple[str, dict]] | None:
 
     # Normalize operators
     expr = expr.replace("'", ")'")  # handle A' style
-    expr = expr.replace("·", "*")
     expr = expr.replace("&", "*")
     expr = expr.replace("|", "+")
     expr = expr.replace("!", "~")
@@ -85,7 +84,7 @@ def simplify_expression(expr: str) -> dict:
     """
     table = parse_expression(expr)
     if table is None:
-        return {"success": False, "message": "Could not parse expression. Use A, B, C with + (OR), · (AND), ~ (NOT)"}
+        return {"success": False, "message": "Could not parse expression. Use A, B, C with + (OR), * (AND), ~ (NOT)"}
 
     vars_found = sorted(set(re.findall(r'[A-Z]', expr)))
     n = len(vars_found)
@@ -113,7 +112,7 @@ def simplify_expression(expr: str) -> dict:
         terms = []
         for var, bit in zip(vars_found, bits):
             terms.append(var if bit == '1' else f"~{var}")
-        return " · ".join(terms)
+        return " * ".join(terms)
 
     def maxterm_str(idx):
         bits = format(idx, f'0{n}b')
@@ -123,7 +122,7 @@ def simplify_expression(expr: str) -> dict:
         return " + ".join(terms)
 
     sop = " + ".join(minterm_str(m) for m in minterms)
-    pos = " · ".join(f"({maxterm_str(m)})" for m in maxterms)
+    pos = " * ".join(f"({maxterm_str(m)})" for m in maxterms)
 
     return {
         "success": True,
@@ -173,10 +172,10 @@ class BooleanAlgebraSimplifier:
     def get_examples(self) -> list:
         """Get example boolean expressions."""
         return [
-            "A · B + C",
-            "~A + B · C",
-            "(A + B) · C",
+            "A * B + C",
+            "~A + B * C",
+            "(A + B) * C",
             "A ^ B",
-            "A + A · B",
+            "A + A * B",
             "~(A + B)",
         ]

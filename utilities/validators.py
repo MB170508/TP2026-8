@@ -139,8 +139,8 @@ def validate_boolean_expression(value: str) -> Tuple[bool, str]:
     value = value.upper().replace(" ", "")
 
     # Valid characters: letters, operators, parentheses
-    if not re.match(r'^[A-Z0-9+*\'().]+$', value):
-        return False, "Invalid characters. Use A-Z, +, *, ', (), 0-9"
+    if not re.match(r'^[A-Z0-9+*~\'().]+$', value):
+        return False, "Invalid characters. Use A-Z, +, *, ~, ', (), 0-9"
 
     # Check for balanced parentheses
     if value.count('(') != value.count(')'):

@@ -251,7 +251,7 @@ def create_notepad_tab(page: ft.Page) -> ft.Column:
                             ft.Container(
                                 content=note_editor,
                                 expand=True,
-                                border=ft.Border.all(1, GREY_300_COLOR),
+                                #border=ft.Border.all(1, GREY_300_COLOR),
                                 border_radius=4,
                             ),
                             note_actions_row,

@@ -167,7 +167,7 @@ def create_base_calc_tab(page: ft.Page) -> ft.Column:
             expr_results,
             ft.Divider(),
             ft.Container(content=history_display, height=120),
-            ft.Row([btn("Reset", reset_base), btn("Examples", load_examples)]),
+            ft.Row([btn("Reset", reset_base)]), # btn("Examples", load_examples)
         ],
         scroll=ft.ScrollMode.AUTO,
         spacing=10,

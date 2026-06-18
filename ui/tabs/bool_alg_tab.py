@@ -11,7 +11,7 @@ def create_bool_alg_tab(page: ft.Page) -> ft.Column:
     """Create Boolean Algebra Simplifier tab.
 
     Simplifies boolean expressions and generates truth tables.
-    Supports AND (·), OR (+), NOT (~), XOR (^) operators.
+    Supports AND (*), OR (+), NOT (~), XOR (^) operators.
 
     Args:
         page: Flet page instance
@@ -24,7 +24,7 @@ def create_bool_alg_tab(page: ft.Page) -> ft.Column:
     bool_error = ft.Text("", size=12, color=ERROR_COLOR)
     bool_result = ft.Column(spacing=6, scroll=ft.ScrollMode.AUTO)
     bool_input = ft.TextField(
-        label="Expression (e.g. A·B + ~C)", width=300, content_padding=8
+        label="Expression (e.g. A*B + ~C)", width=300, content_padding=8
     )
     truth_table_text = ft.Text(
         "", size=10, font_family="monospace", selectable=True
@@ -116,20 +116,19 @@ def create_bool_alg_tab(page: ft.Page) -> ft.Column:
 
     def show_examples_bool(e):
         """Show expression examples (placeholder)."""
-        # Could show in a dialog, but for now just pass
-        pass
+        bool_simplifier.get_examples()
 
     # ── Assembly ────────────────────────────────────
     return ft.Column(
         [
             section("Boolean Algebra Simplifier"),
-            sub("Operators: + (OR), · (AND), ~ (NOT)"),
+            sub("Operators: + (OR), * (AND), ~ (NOT)"),
             ft.Row(
                 [
                     bool_input,
                     btn("Analyze", simplify_bool, primary=True),
                     btn("Reset", reset_bool),
-                    btn("Examples", show_examples_bool),
+                    #btn("Examples", show_examples_bool),
                 ]
             ),
             bool_error,
